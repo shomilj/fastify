@@ -292,3 +292,248 @@ graph TB
 - **Content Type Validation**: Strict content-type checking
 - **Request Size Limits**: Configurable body limits
 - **Error Information Hiding**: Production-safe error responses
+
+## Plugin System
+
+```mermaid
+graph TB
+    subgraph "Plugin Architecture"
+        A[Plugin Registration] --> B[Avvio Boot System]
+        B --> C[Context Creation]
+        
+        subgraph "Encapsulation"
+            D[Parent Context]
+            E[Child Context 1]
+            F[Child Context 2]
+            G[Grandchild Context]
+            
+            D --> E
+            D --> F
+            E --> G
+        end
+        
+        C --> D
+        
+        subgraph "Plugin Features"
+            H[Routes]
+            I[Decorators]
+            J[Hooks]
+            K[Custom Parsers]
+            L[Schemas]
+        end
+        
+        E --> H
+        E --> I
+        E --> J
+        E --> K
+        E --> L
+    end
+    
+    subgraph "Plugin Loading Process"
+        M[register(plugin)] --> N{Plugin Type}
+        N -->|Async| O[Promise-based]
+        N -->|Callback| P[Callback-based]
+        N -->|Sync| Q[Synchronous]
+        
+        O --> R[Execute Plugin]
+        P --> R
+        Q --> R
+        
+        R --> S[Apply Decorations]
+        S --> T[Register Routes]
+        T --> U[Setup Hooks]
+        U --> V[Plugin Ready]
+    end
+    
+    subgraph "Plugin Options"
+        W[fastify-plugin<br/>- No encapsulation<br/>- Decorators leak to parent]
+        X[Regular Plugin<br/>- Encapsulated<br/>- Isolated context]
+        Y[Plugin Metadata<br/>- name<br/>- version<br/>- decorators<br/>- dependencies]
+    end
+```
+
+### Plugin Encapsulation Example
+
+```mermaid
+graph TD
+    subgraph "Root Instance"
+        R[Root Fastify<br/>- Global decorators<br/>- Global hooks]
+    end
+    
+    subgraph "Plugin A Context"
+        A[Plugin A<br/>- Own routes<br/>- Own decorators<br/>- Inherits from root]
+        A1[Route: /users]
+        A2[Decorator: db]
+        A --> A1
+        A --> A2
+    end
+    
+    subgraph "Plugin B Context"
+        B[Plugin B<br/>- Own routes<br/>- Own decorators<br/>- Inherits from root]
+        B1[Route: /products]
+        B2[Decorator: cache]
+        B --> B1
+        B --> B2
+    end
+    
+    subgraph "Nested Plugin C"
+        C[Plugin C<br/>- Inherits from A<br/>- Has access to 'db'<br/>- Own context]
+        C1[Route: /users/profile]
+        C --> C1
+    end
+    
+    R --> A
+    R --> B
+    A --> C
+    
+    style R fill:#e1f5e1
+    style A fill:#e6f3ff
+    style B fill:#ffe6f3
+    style C fill:#f3e6ff
+```
+
+## Hooks System
+
+```mermaid
+graph TB
+    subgraph "Application Hooks"
+        A1[onRoute<br/>Route registration]
+        A2[onRegister<br/>Plugin registration]
+        A3[onReady<br/>Server ready]
+        A4[onListen<br/>Server listening]
+        A5[preClose<br/>Before closing]
+        A6[onClose<br/>Server closed]
+    end
+    
+    subgraph "Request/Reply Hooks"
+        B1[onRequest<br/>Request received]
+        B2[preParsing<br/>Before parsing body]
+        B3[preValidation<br/>Before validation]
+        B4[preHandler<br/>Before handler]
+        B5[preSerialization<br/>Before serialization]
+        B6[onSend<br/>Before sending]
+        B7[onResponse<br/>Response sent]
+        B8[onError<br/>Error occurred]
+        B9[onTimeout<br/>Request timeout]
+        B10[onRequestAbort<br/>Request aborted]
+    end
+    
+    subgraph "Hook Execution Flow"
+        Start[Request Start] --> B1
+        B1 --> B2
+        B2 --> B3
+        B3 --> B4
+        B4 --> Handler[Route Handler]
+        Handler --> B5
+        B5 --> B6
+        B6 --> B7
+        B7 --> End[Request End]
+        
+        B1 -.->|Error| B8
+        B2 -.->|Error| B8
+        B3 -.->|Error| B8
+        B4 -.->|Error| B8
+        Handler -.->|Error| B8
+        B5 -.->|Error| B8
+        B6 -.->|Error| B8
+        B8 --> B6
+        
+        B1 -.->|Timeout| B9
+        B1 -.->|Abort| B10
+    end
+    
+    style Start fill:#e1f5e1
+    style End fill:#ffe1e1
+    style B8 fill:#ffcccc
+```
+
+### Hook Registration and Inheritance
+
+```mermaid
+graph LR
+    subgraph "Hook Registration"
+        A[Global Hooks<br/>fastify.addHook()] --> B[Plugin Hooks<br/>Inherited + Own]
+        B --> C[Route Hooks<br/>All inherited + Route-specific]
+    end
+    
+    subgraph "Hook Types"
+        D[Synchronous<br/>function(request, reply, done)]
+        E[Async/Promise<br/>async function(request, reply)]
+        F[Error Hooks<br/>function(error, request, reply)]
+    end
+    
+    subgraph "Hook Features"
+        G[Encapsulated<br/>Inherit from parent]
+        H[Ordered Execution<br/>Parent → Child]
+        I[Error Propagation<br/>Stop on error]
+        J[Async Support<br/>Promise-based]
+    end
+```
+
+## Key Architectural Patterns
+
+### 1. **Encapsulation via Context**
+- Each plugin creates an isolated context
+- Decorators and hooks are inherited but not shared sideways
+- Enables modular application structure
+
+### 2. **Lifecycle Management**
+- Clear separation between application lifecycle and request lifecycle
+- Hooks provide interception points at each stage
+- Async-first design with callback support
+
+### 3. **Schema-Driven Development**
+- JSON Schema validation for requests
+- Automatic serialization for responses
+- Compile-time optimization for performance
+
+### 4. **Error Handling**
+- Centralized error handling with custom handlers
+- Error hooks for logging and transformation
+- Graceful degradation and recovery
+
+### 5. **Performance Optimizations**
+- Route compilation at startup
+- Schema compilation and caching
+- Minimal overhead in hot paths
+- Stream support for large payloads
+
+## Dependencies and Integration Points
+
+```mermaid
+graph TD
+    subgraph "Core Dependencies"
+        A[find-my-way<br/>High-performance router]
+        B[pino<br/>Fast JSON logger]
+        C[avvio<br/>Plugin boot system]
+        D[ajv<br/>JSON Schema validator]
+        E[fast-json-stringify<br/>Fast serialization]
+        F[light-my-request<br/>HTTP injection]
+    end
+    
+    subgraph "Integration Points"
+        G[HTTP Server<br/>Node.js built-in]
+        H[HTTP/2 Support<br/>Native module]
+        I[HTTPS Support<br/>TLS/SSL]
+        J[Diagnostics Channel<br/>Observability]
+    end
+    
+    subgraph "Optional Features"
+        K[Type Providers<br/>TypeScript support]
+        L[Custom Serializers<br/>msgpack, protobuf, etc.]
+        M[Custom Validators<br/>Joi, Yup, etc.]
+        N[Middleware Support<br/>Express compatibility]
+    end
+```
+
+## Summary
+
+Fastify's architecture is designed around several key principles:
+
+1. **Performance**: Minimal overhead, optimized hot paths, and compile-time optimizations
+2. **Developer Experience**: Clear APIs, helpful errors, and excellent TypeScript support
+3. **Modularity**: Plugin system with encapsulation for building maintainable applications
+4. **Extensibility**: Hooks, decorators, and custom parsers/serializers
+5. **Standards-based**: JSON Schema for validation, standard HTTP semantics
+
+The framework achieves high performance while maintaining a clean, extensible architecture that scales from simple APIs to complex microservices.
