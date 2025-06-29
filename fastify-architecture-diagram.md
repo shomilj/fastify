@@ -1,268 +1,280 @@
 # Fastify Architecture Diagram
 
 ## Overview
+Fastify is a high-performance web framework for Node.js with a plugin-based architecture, comprehensive lifecycle hooks, and built-in schema validation.
 
-Fastify is a high-performance web framework for Node.js, designed with a plugin-based architecture and an emphasis on developer experience. This document provides a comprehensive architectural overview of the Fastify framework.
+## Core Architecture
 
-## High-Level Architecture
+```mermaid
+graph TB
+    subgraph "Entry Point"
+        MAIN[fastify.js<br/>Main Entry Point]
+    end
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            Fastify Application                          │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐  │
-│  │   Server    │  │   Router    │  │   Plugins   │  │  Decorators  │  │
-│  │  (HTTP/S)   │  │(find-my-way)│  │   (Avvio)   │  │              │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  │
-│         │                 │                 │                │          │
-│  ┌──────┴─────────────────┴─────────────────┴────────────────┴──────┐  │
-│  │                      Core Engine (fastify.js)                    │  │
-│  └───────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+    subgraph "Core Components"
+        AVVIO[Avvio<br/>Plugin System]
+        ROUTER[find-my-way<br/>Router]
+        SERVER[HTTP/HTTPS/HTTP2<br/>Server]
+    end
 
-## Core Components
+    subgraph "Request Pipeline"
+        REQ[Request Object]
+        REPLY[Reply Object]
+        HANDLER[Route Handler]
+        CONTEXT[Route Context]
+    end
 
-### 1. Entry Point & Initialization
+    subgraph "Lifecycle Hooks"
+        HOOKS[Hooks System]
+        APPHOOKS[Application Hooks<br/>- onRoute<br/>- onRegister<br/>- onReady<br/>- onListen<br/>- preClose<br/>- onClose]
+        REQHOOKS[Request Hooks<br/>- onRequest<br/>- preParsing<br/>- preValidation<br/>- preHandler<br/>- preSerialization<br/>- onSend<br/>- onResponse<br/>- onError<br/>- onTimeout<br/>- onRequestAbort]
+    end
 
-```
-fastify.js
-    │
-    ├─> Creates Fastify Instance
-    │   ├─> HTTP/HTTPS/HTTP2 Server (lib/server.js)
-    │   ├─> Router Instance (find-my-way)
-    │   ├─> Plugin System (Avvio)
-    │   ├─> Hooks System (lib/hooks.js)
-    │   ├─> Schema Controller (lib/schema-controller.js)
-    │   └─> Content Type Parser (lib/contentTypeParser.js)
-    │
-    └─> Returns Fastify API
-```
+    subgraph "Validation & Serialization"
+        SCHEMA[Schema Controller]
+        AJV[AJV Validator]
+        FJS[fast-json-stringify]
+    end
 
-### 2. Request Lifecycle
+    subgraph "Content Handling"
+        CTP[Content Type Parser]
+        PARSERS[Built-in Parsers<br/>- JSON<br/>- Text<br/>- Buffer<br/>- Stream]
+    end
 
-```
-┌─────────────────┐
-│ Incoming Request│
-└────────┬────────┘
-         │
-         v
-┌─────────────────┐     ┌──────────────┐
-│  HTTP Handler   │────>│ Route Lookup │
-│(lib/server.js)  │     │(find-my-way) │
-└────────┬────────┘     └──────┬───────┘
-         │                     │
-         v                     v
-┌─────────────────┐     ┌──────────────┐
-│ Route Handler   │<────│Route Context │
-│(lib/route.js)   │     │(lib/context) │
-└────────┬────────┘     └──────────────┘
-         │
-         v
-┌─────────────────────────────────────┐
-│         Hooks Pipeline              │
-│  ┌────────────────────────────┐    │
-│  │ 1. onRequest               │    │
-│  │ 2. preParsing              │    │
-│  │ 3. preValidation           │    │
-│  │ 4. preHandler              │    │
-│  │ 5. Route Handler           │    │
-│  │ 6. preSerialization        │    │
-│  │ 7. onSend                  │    │
-│  │ 8. onResponse              │    │
-│  └────────────────────────────┘    │
-└────────┬────────────────────────────┘
-         │
-         v
-┌─────────────────┐
-│ Response Sent   │
-└─────────────────┘
-```
+    subgraph "Error Management"
+        ERROR[Error Handler]
+        FOUROFOUR[404 Handler]
+        ERRTYPES[Error Types<br/>- Validation Errors<br/>- Runtime Errors<br/>- Plugin Errors]
+    end
 
-### 3. Plugin Architecture (Encapsulation)
+    subgraph "Logging"
+        LOGGER[Pino Logger]
+        CHILDLOG[Child Loggers<br/>per Request]
+    end
 
-```
-┌─────────────────────────────────────────────────┐
-│                Root Context                     │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-│  │ Plugin A  │  │ Plugin B  │  │ Plugin C  │  │
-│  │           │  │           │  │           │  │
-│  │ ┌───────┐ │  │ ┌───────┐ │  │ ┌───────┐ │  │
-│  │ │Child 1│ │  │ │Child 1│ │  │ │Child 1│ │  │
-│  │ └───────┘ │  │ └───────┘ │  │ └───────┘ │  │
-│  │ ┌───────┐ │  │           │  │ ┌───────┐ │  │
-│  │ │Child 2│ │  │           │  │ │Child 2│ │  │
-│  │ └───────┘ │  │           │  │ └───────┘ │  │
-│  └───────────┘  └───────────┘  └───────────┘  │
-└─────────────────────────────────────────────────┘
+    subgraph "Decorators & Encapsulation"
+        DECORATOR[Decorator System]
+        ENCAP[Context Encapsulation]
+    end
 
-Each plugin creates an encapsulated context with:
-- Own decorators
-- Own hooks
-- Own routes
-- Own error handlers
+    MAIN --> AVVIO
+    MAIN --> ROUTER
+    MAIN --> SERVER
+    
+    SERVER --> REQ
+    REQ --> CONTEXT
+    CONTEXT --> HOOKS
+    
+    HOOKS --> APPHOOKS
+    HOOKS --> REQHOOKS
+    
+    REQHOOKS --> CTP
+    CTP --> PARSERS
+    
+    REQHOOKS --> SCHEMA
+    SCHEMA --> AJV
+    SCHEMA --> FJS
+    
+    CONTEXT --> HANDLER
+    HANDLER --> REPLY
+    
+    REPLY --> REQHOOKS
+    
+    ERROR --> FOUROFOUR
+    ERROR --> ERRTYPES
+    
+    REQ --> CHILDLOG
+    CHILDLOG --> LOGGER
+    
+    AVVIO --> DECORATOR
+    DECORATOR --> ENCAP
+    ENCAP --> CONTEXT
+
+    style MAIN fill:#f9f,stroke:#333,stroke-width:4px
+    style SERVER fill:#bbf,stroke:#333,stroke-width:2px
+    style HOOKS fill:#bfb,stroke:#333,stroke-width:2px
+    style SCHEMA fill:#fbf,stroke:#333,stroke-width:2px
 ```
 
-### 4. Core Libraries Structure
+## Component Details
 
-```
-lib/
-├── server.js           # HTTP/HTTPS/HTTP2 server creation
-├── route.js            # Route registration and handling
-├── hooks.js            # Lifecycle hooks implementation
-├── context.js          # Request context management
-├── request.js          # Request object factory
-├── reply.js            # Reply object factory
-├── contentTypeParser.js # Body parsing logic
-├── schema-controller.js # JSON Schema validation/serialization
-├── pluginUtils.js      # Plugin management utilities
-├── pluginOverride.js   # Encapsulation logic
-├── decorate.js         # Decorator pattern implementation
-├── errors.js           # Error definitions
-├── error-handler.js    # Error handling logic
-├── fourOhFour.js       # 404 handling
-├── handleRequest.js    # Main request handler
-├── validation.js       # Schema validation logic
-├── symbols.js          # Internal symbols
-└── logger-factory.js   # Logger creation
-```
+### 1. **Entry Point (`fastify.js`)**
+- Creates the Fastify instance
+- Initializes all core components
+- Exposes public API methods
+- Sets up default configurations
 
-## Key Architectural Patterns
+### 2. **Plugin System (Avvio)**
+- Manages asynchronous plugin registration
+- Provides encapsulation between plugins
+- Handles plugin dependencies
+- Supports plugin metadata and versioning
 
-### 1. Encapsulation & Inheritance
+### 3. **Routing (find-my-way)**
+- High-performance HTTP router
+- Supports parametric and wildcard routes
+- Constraint-based routing (versioning, host, etc.)
+- Method-based routing
 
-```
-┌─────────────────┐
-│  Parent Context │
-│  - decorators   │
-│  - hooks        │
-│  - schemas      │
-└────────┬────────┘
-         │ inherits
-         v
-┌─────────────────┐
-│  Child Context  │
-│  - decorators + │
-│  - hooks +      │
-│  - schemas +    │
-└─────────────────┘
-```
+### 4. **Server Layer**
+- Supports HTTP/1.1, HTTP/2, and HTTPS
+- Configurable timeouts and limits
+- Connection management
+- Request/Response handling
 
-### 2. Hook System
+### 5. **Request Lifecycle**
 
-```
-Application Hooks:
-- onRoute       # When route is registered
-- onRegister    # When plugin is registered  
-- onReady       # When server is ready
-- onListen      # When server starts listening
-- preClose      # Before server closes
-- onClose       # When server closes
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    participant Router
+    participant Hooks
+    participant ContentParser
+    participant Validator
+    participant Handler
+    participant Serializer
+    participant Reply
 
-Lifecycle Hooks (per request):
-- onTimeout     # Request timeout
-- onRequest     # Start of request
-- preParsing    # Before parsing body
-- preValidation # Before validation
-- preHandler    # Before route handler
-- preSerialization # Before serialization
-- onSend        # Before sending response
-- onResponse    # After response sent
-- onError       # On error
-- onRequestAbort # Request aborted
+    Client->>Server: HTTP Request
+    Server->>Router: Route Lookup
+    Router->>Hooks: onRequest Hook
+    Hooks->>ContentParser: preParsing Hook
+    ContentParser->>ContentParser: Parse Body
+    ContentParser->>Validator: preValidation Hook
+    Validator->>Validator: Validate Schema
+    Validator->>Hooks: preHandler Hook
+    Hooks->>Handler: Execute Handler
+    Handler->>Reply: Generate Response
+    Reply->>Hooks: preSerialization Hook
+    Hooks->>Serializer: Serialize Response
+    Serializer->>Hooks: onSend Hook
+    Hooks->>Client: Send Response
+    Hooks->>Hooks: onResponse Hook
 ```
 
-### 3. Validation & Serialization Flow
+### 6. **Hook System**
+- **Application Hooks**: Control server lifecycle
+- **Request Hooks**: Intercept request/response flow
+- Supports both sync and async hooks
+- Error propagation through hook chain
+
+### 7. **Validation & Serialization**
+- JSON Schema validation via AJV
+- Fast JSON serialization via fast-json-stringify
+- Compiled schemas for performance
+- Custom error formatting
+
+### 8. **Content Type Parsing**
+- Pluggable parser system
+- Built-in parsers for common types
+- Custom parser registration
+- Body size limits
+
+### 9. **Context & Encapsulation**
+- Each route has its own context
+- Encapsulated decorators per plugin
+- Inherited from parent contexts
+- Isolated configuration
+
+### 10. **Error Handling**
+- Centralized error handler
+- Custom 404 handling per context
+- Error serialization
+- Hook-based error interception
+
+### 11. **Logging**
+- Based on Pino (high-performance logger)
+- Request-scoped child loggers
+- Configurable log levels
+- Custom serializers
+
+## Key Features
+
+### Performance Optimizations
+- Route compilation at startup
+- Schema compilation for validation/serialization
+- Minimal overhead in request handling
+- Efficient plugin loading
+
+### Developer Experience
+- Chainable API
+- TypeScript support
+- Comprehensive error messages
+- Extensive plugin ecosystem
+
+### Security Features
+- Prototype poisoning protection
+- Request timeout handling
+- Body size limits
+- Schema validation
+
+## File Structure Mapping
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Request   │────>│ Schema Validator │────>│   Handler   │
-│    Body     │     │  (AJV Compiler)  │     │             │
-└─────────────┘     └──────────────────┘     └──────┬───────┘
-                                                     │
-                                                     v
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│  Response   │<────│Schema Serializer │<────│   Result    │
-│             │     │ (fast-json-      │     │             │
-│             │     │  stringify)      │     │             │
-└─────────────┘     └──────────────────┘     └─────────────┘
+fastify/
+├── fastify.js              # Main entry point
+├── lib/
+│   ├── server.js           # HTTP server creation
+│   ├── route.js            # Route registration
+│   ├── context.js          # Route context
+│   ├── hooks.js            # Hook system
+│   ├── request.js          # Request object
+│   ├── reply.js            # Reply object
+│   ├── contentTypeParser.js # Content parsing
+│   ├── schema-controller.js # Schema management
+│   ├── validation.js       # Schema validation
+│   ├── handleRequest.js    # Request handler
+│   ├── pluginUtils.js      # Plugin utilities
+│   ├── pluginOverride.js   # Plugin encapsulation
+│   ├── decorate.js         # Decorator system
+│   ├── errors.js           # Error definitions
+│   ├── error-handler.js    # Error handling
+│   ├── fourOhFour.js       # 404 handling
+│   ├── logger-factory.js   # Logger creation
+│   └── symbols.js          # Internal symbols
+├── types/                  # TypeScript definitions
+└── test/                   # Test suite
 ```
 
-### 4. Content Type Parsing
+## Plugin Architecture
 
-```
-┌─────────────────────┐
-│  Content-Type Header│
-└──────────┬──────────┘
-           │
-           v
-┌─────────────────────┐     ┌──────────────┐
-│ ContentTypeParser   │────>│ Parser Func  │
-│  Registry           │     │ (registered) │
-└─────────────────────┘     └──────┬───────┘
-                                   │
-                                   v
-                            ┌──────────────┐
-                            │ Parsed Body  │
-                            └──────────────┘
-```
+```mermaid
+graph LR
+    subgraph "Plugin Registration"
+        REGISTER[fastify.register]
+        META[Plugin Metadata]
+        DEPS[Dependencies Check]
+        VER[Version Check]
+    end
 
-## Type System Integration
+    subgraph "Plugin Context"
+        PARENT[Parent Context]
+        CHILD[Child Context]
+        DEC[Decorators]
+        HOOKS2[Hooks]
+    end
 
-```
-types/
-├── fastify.d.ts        # Main type definitions
-├── instance.d.ts       # Fastify instance types
-├── request.d.ts        # Request types
-├── reply.d.ts          # Reply types
-├── route.d.ts          # Route types
-├── hooks.d.ts          # Hook types
-├── schema.d.ts         # Schema types
-├── plugin.d.ts         # Plugin types
-├── type-provider.d.ts  # Type provider system
-└── ...
+    REGISTER --> META
+    META --> DEPS
+    DEPS --> VER
+    VER --> CHILD
+    PARENT -.inherit.-> CHILD
+    CHILD --> DEC
+    CHILD --> HOOKS2
 ```
 
-## Performance Optimizations
+## Request Flow Summary
 
-1. **Route Lookup**: Uses radix tree (find-my-way) for O(k) lookups
-2. **Schema Compilation**: Pre-compiles validators and serializers
-3. **Lazy Loading**: Components loaded only when needed
-4. **Object Pooling**: Reuses request/reply objects
-5. **Async/Await Support**: Native promise handling
-6. **Stream Support**: Efficient handling of streams
+1. **Server receives request** → HTTP handler
+2. **Router finds route** → find-my-way lookup
+3. **Create request context** → Request/Reply objects
+4. **Run lifecycle hooks** → Sequential hook execution
+5. **Parse body** → Content-Type based parsing
+6. **Validate request** → JSON Schema validation
+7. **Execute handler** → User route handler
+8. **Serialize response** → fast-json-stringify
+9. **Send response** → Reply.send()
+10. **Log and cleanup** → onResponse hooks
 
-## External Dependencies
-
-```
-Core Dependencies:
-- avvio                 # Plugin system
-- find-my-way          # Router
-- pino                 # Logger
-- @fastify/ajv-compiler # Schema validation
-- @fastify/fast-json-stringify-compiler # Serialization
-- light-my-request      # Request injection (testing)
-```
-
-## Extension Points
-
-1. **Decorators**: Extend request/reply/instance objects
-2. **Hooks**: Intercept request lifecycle
-3. **Plugins**: Encapsulated functionality
-4. **Content Type Parsers**: Custom body parsing
-5. **Schema Compilers**: Custom validation/serialization
-6. **Error Handlers**: Custom error handling
-7. **Constraints**: Custom routing constraints
-
-## Summary
-
-Fastify's architecture is built around:
-- **Performance**: Optimized for high throughput
-- **Extensibility**: Plugin-based architecture with encapsulation
-- **Developer Experience**: Comprehensive validation, serialization, and error handling
-- **Type Safety**: Full TypeScript support with type providers
-- **Standards**: Built on web standards with HTTP/2 support
-
-The framework achieves its high performance through careful optimization of the request lifecycle, efficient routing, and pre-compilation of schemas while maintaining a clean, extensible architecture.
+This architecture enables Fastify to achieve high performance while maintaining a clean, extensible design with excellent developer experience.
